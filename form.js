@@ -89,21 +89,23 @@
     render();
   };
 
-  // HIGH-ENTROPY COLLISION-FREE IMPLEMENTATION (Dynamic Current Year + Timestamp + Crypto Random)
   const generateApplicantId = () => {
     const currentYear = new Date().getFullYear();
-    const timestamp = String(Date.now()).slice(-5);
     
-    // Fallback to basic random logic if browser environment lacks modern crypto APIs
+    // Safely pull a 5-digit slice out of the end of the modern Unix epoch timestamp
+    const timestampSection = String(Date.now()).substring(8, 13);
+    
+    // Fall back safely if running context lacks hardware-backed crypto tools
+    let random4Digit;
     if (typeof window !== "undefined" && window.crypto && window.crypto.getRandomValues) {
       const cryptoArray = new Uint32Array(1);
       window.crypto.getRandomValues(cryptoArray);
-      const random4Digit = Math.floor(1000 + (cryptoArray[0] % 9000));
-      return `NG-${currentYear}-${timestamp}-${random4Digit}`;
+      random4Digit = Math.floor(1000 + (cryptoArray[0] % 9000));
+    } else {
+      random4Digit = Math.floor(1000 + Math.random() * 9000);
     }
     
-    const legacyRandom4Digit = Math.floor(1000 + Math.random() * 9000);
-    return `NG-${currentYear}-${timestamp}-${legacyRandom4Digit}`;
+    return `NG-${currentYear}-${timestampSection}-${random4Digit}`;
   };
 
   const showSuccess = (message, after, duration = 2300) => {
@@ -466,6 +468,7 @@
 
   /* -------------- Review -------------- */
   function ReviewStep() {
+    // step indices must match STEPS positions (after removing mother)
     const fields = [
       { label: "Full Name",       val: state.data.fullName || "",       step: 2 },
       { label: "Father",          val: state.data.fatherName || "",     step: 3 },
@@ -587,6 +590,9 @@
 
   /* -------------- Success overlay -------------- */
   function SuccessOverlay() {
+    const circle = h("circle", { class: "faceid-circle", cx: "50", cy: "50", r: "46" });
+    const check  = h("path",   { class: "faceid-checkmark", d: "M31 52 L44 65 L70 36" });
+    // SVG needs the SVG namespace — recreate via createElementNS:
     const svgNS = "http://www.w3.org/2000/svg";
     const svg = document.createElementNS(svgNS, "svg");
     svg.setAttribute("class", "faceid-svg");
@@ -825,12 +831,14 @@
     const { jsPDF } = window.jspdf;
     const { appId, html } = buildPdfDom(d);
 
+    // Off-screen, on-DOM container so html2canvas can measure layout.
     const stage = document.createElement("div");
     stage.style.cssText = "position:fixed; left:-99999px; top:0; width:850px; background:#fff; z-index:-1;";
     stage.innerHTML = html;
     document.body.appendChild(stage);
 
     try {
+      // Wait for the photo image (data URL) to be ready before rasterizing.
       const imgs = Array.from(stage.querySelectorAll("img"));
       await Promise.all(imgs.map((img) => img.complete ? null : new Promise((res) => { img.onload = img.onerror = res; })));
 
@@ -847,6 +855,7 @@
           logging: false,
         });
         const imgData = canvas.toDataURL("image/jpeg", 0.95);
+        // Fit width; crop height if it overflows a single A4.
         const ratio = canvas.height / canvas.width;
         let renderW = pageW;
         let renderH = pageW * ratio;
@@ -864,6 +873,7 @@
       stage.remove();
     }
   }
+
 
   /* -------------- main render -------------- */
   function render() {
