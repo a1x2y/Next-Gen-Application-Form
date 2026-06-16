@@ -226,9 +226,9 @@
       if (invalid) nextBtn.setAttribute("disabled", ""); else nextBtn.removeAttribute("disabled");
     };
     const body = step.input === "textarea"
-      ? h("textarea", { class: "field", style: { minHeight: "120px", resize: "none" }, placeholder: step.placeholder || "", onInput: (e) => setVal(e.target.value), onKeydown: onKey, ref: (el) => inputEl = el }, state.data[step.key] || "")
+      ? h("textarea", { class: "field", style: { minHeight: "120px", resize: "none" }, placeholder: step.placeholder || "", autocomplete: "off", onInput: (e) => setVal(e.target.value), onKeydown: onKey, ref: (el) => inputEl = el }, state.data[step.key] || "")
       : (() => {
-          const el = h("input", { type: step.input === "number" ? "text" : (step.input || "text"), class: "field", placeholder: step.placeholder || "", onInput: (e) => setVal(e.target.value), onKeydown: onKey, ref: (el) => inputEl = el });
+          const el = h("input", { type: step.input === "number" ? "text" : (step.input || "text"), class: "field", placeholder: step.placeholder || "", autocomplete: "off", onInput: (e) => setVal(e.target.value), onKeydown: onKey, ref: (el) => inputEl = el });
           el.value = state.data[step.key] || "";
           return el;
         })();
@@ -277,6 +277,7 @@
             (() => {
               const inp = h("input", {
                 placeholder: "Search…",
+                autocomplete: "off",
                 class: "w-full mb-4 px-5 py-3 rounded-2xl glass text-base outline-none transition",
                 onInput: (e) => { query = e.target.value; renderInner(); },
               });
@@ -650,6 +651,7 @@
     .ng-pdf .photo-placement-box { width:130px; height:130px; border:1.5px dashed #a1a1aa; background:#f8fafc; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; padding:6px; color:#636366; font-size:10px; font-weight:600; border-radius:4px; flex-shrink:0; overflow:hidden; }
     .ng-pdf .photo-placement-box img { width:100%; height:100%; object-fit:cover; border-radius:3px; }
     .ng-pdf .photo-placement-box span { margin-top:4px; font-size:8px; text-transform:uppercase; letter-spacing:0.5px; color:#a1a1aa; font-weight:500; }
+    .ng-pdf .photo-placement-box border { border-radius:4px; }
     .ng-pdf .section-title { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:#111; background:#f2f2f7; padding:6px 10px; margin:22px 0 12px; }
     .ng-pdf .data-grid { display:grid; grid-template-columns:repeat(4, 1fr); gap:12px 20px; }
     .ng-pdf .grid-item { display:flex; flex-direction:column; }
@@ -866,11 +868,20 @@
       }
 
       pdf.save(`${appId}.pdf`);
+
+      // SECURITY INTEGRATION: Data Minimization Clear Trigger
+      // We clear after pdf.save() occurs so the generator has full reading rights beforehand.
+      localStorage.removeItem(STORAGE_KEY);
+      state.data = {};
+      state.hasDraft = false;
+      state.step = 0; // Return context to main dashboard view safely
+
     } catch (err) {
       console.error(err);
       alert("Could not generate PDF: " + (err && err.message ? err.message : err));
     } finally {
       stage.remove();
+      render(); // Refresh the DOM layout to show clean state
     }
   }
 
@@ -907,7 +918,7 @@
   /* -------------- init -------------- */
   function init() {
     const stored = localStorage.getItem(THEME_KEY);
-    const sysDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const sysDark = window.matchMedia && window.matchMedia(\"(prefers-color-scheme: dark)\").matches;
     state.theme = stored === "light" || stored === "dark" ? stored : (sysDark ? "dark" : "light");
     document.documentElement.classList.toggle("dark", state.theme === "dark");
     state.hasDraft = !!localStorage.getItem(STORAGE_KEY);
